@@ -12,9 +12,34 @@ export default function Mint({ handleClose }: Props) {
   const [step, setStep] = useState(0);
   const [feeRate, setFeeRate] = useState(9);
   const [address, setAddress] = useState("");
-  const [paymentRequest, setPaymentRequest] = useState(
-    "lntbs450n1p37j8axpp5w9wellujhn2aka3ahh8ck77azx4l6xyc9hcavfefmqhltp3thhyqhp5g4z8k7hm6hj5fa7s780slnxjvq2dnpgpxz4a8upqhz0lj6uzq70scqzpuxqyz5vqsp53pvyec6tkygzt3exn3etdd2fq683y8cr7r7kqh4ryqd4e9kj9qrq9qyyssqtmnw882848ql6fgjj4lnffs7vjx26cxs7xqp8qm2yu38rtljq5s90nfnr4xly2md7r2p43ua4mf6rlfgarkul4edl58qwz4g9qm2nssqnjvadh"
-  );
+  const [paymentRequest, setPaymentRequest] = useState("");
+  const [fetching, setFetching] = useState(false);
+
+  const monitorPayment = async (paymentRequest: string) => {
+    for (let i = 0; i < 12; i++) {
+      const result = await fetch(
+        `/api/getInvoiceStatus?paymentRequest=${paymentRequest}`
+      );
+      const data = await result.json();
+      console.log({ data });
+      if (data.status === "PAID") {
+        const res = await fetch("/api/inscribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            paymentRequest: paymentRequest,
+          }),
+        });
+        const d = await res.json();
+        console.log({ d });
+        setStep(5);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+  };
 
   return (
     <motion.div
@@ -162,8 +187,28 @@ export default function Mint({ handleClose }: Props) {
                     Back
                   </button>
                   <button
-                    className="btn btn-primary"
-                    onClick={() => setStep(4)}
+                    className={`btn btn-primary ${fetching ? "loading" : ""}`}
+                    onClick={async () => {
+                      setFetching(true);
+                      const data = await (
+                        await fetch("/api/generateInvoice", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            address,
+                            totalAmountInSats: inscribes * 15,
+                            numberOfInscriptions: inscribes,
+                          }),
+                        })
+                      ).json();
+                      console.log({ data });
+                      setPaymentRequest(data.paymentRequest);
+                      setFetching(false);
+                      void monitorPayment(data.paymentRequest);
+                      setStep(4);
+                    }}
                   >
                     Next
                   </button>
@@ -222,12 +267,12 @@ export default function Mint({ handleClose }: Props) {
                   <button className="btn" onClick={() => setStep(3)}>
                     Back
                   </button>
-                  <button
+                  {/* <button
                     className="btn btn-primary"
                     onClick={() => setStep(5)}
                   >
                     Next
-                  </button>
+                  </button> */}
                 </div>
               </motion.div>
             )}
